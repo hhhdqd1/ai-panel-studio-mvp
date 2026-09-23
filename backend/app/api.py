@@ -30,6 +30,20 @@ async def get_discussion(discussion_id: str, request: Request) -> dict:
     return snapshot
 
 
+@router.post("/discussions/{discussion_id}/start", status_code=202)
+async def start_discussion(discussion_id: str, request: Request) -> dict:
+    store = request.app.state.store
+    if await store.get_snapshot(discussion_id) is None:
+        raise HTTPException(status_code=404, detail="讨论不存在")
+    changed = await store.transition(
+        discussion_id, "awaiting_confirmation", "running", stage="opening"
+    )
+    if not changed:
+        raise HTTPException(status_code=409, detail="讨论已开始或当前状态不可启动")
+    request.app.state.runner.schedule(discussion_id)
+    return {"id": discussion_id, "status": "running"}
+
+
 @router.post("/discussions/{discussion_id}/resume", status_code=202)
 async def resume_panel(discussion_id: str, request: Request) -> dict:
     store = request.app.state.store

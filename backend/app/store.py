@@ -255,3 +255,119 @@ class Store:
             await connection.commit()
         finally:
             await connection.close()
+
+    async def count_model_runs(self, discussion_id: str) -> int:
+        connection = await connect_db(self.db_path)
+        try:
+            cursor = await connection.execute(
+                "SELECT COUNT(*) AS count FROM model_run WHERE discussion_id = ?", (discussion_id,)
+            )
+            return (await cursor.fetchone())["count"]
+        finally:
+            await connection.close()
+
+    async def update_agent(
+        self, discussion_id: str, agent_id: str, public_status: str, public_intent: str
+    ) -> dict:
+        connection = await connect_db(self.db_path)
+        try:
+            await connection.execute("BEGIN IMMEDIATE")
+            cursor = await connection.execute(
+                "SELECT * FROM agent WHERE discussion_id = ? AND id = ?",
+                (discussion_id, agent_id),
+            )
+            row = await cursor.fetchone()
+            if row is None:
+                raise ValueError("agent does not belong to discussion")
+            await connection.execute(
+                "UPDATE agent SET public_status = ?, public_intent = ? WHERE id = ?",
+                (public_status, public_intent[:160], agent_id),
+            )
+            agent = dict(row)
+            agent["public_status"] = public_status
+            agent["public_intent"] = public_intent[:160]
+            agent["specialties"] = json.loads(agent.pop("specialties_json"))
+            agent.pop("discussion_id")
+            await self._append_event_tx(
+                connection, discussion_id, "agent.updated", {"agent": agent}
+            )
+            await connection.commit()
+            return agent
+        except BaseException:
+            await connection.rollback()
+            raise
+        finally:
+            await connection.close()
+
+    async def append_message(
+        self, discussion_id: str, agent_id: str, stage: str, content: str
+    ) -> dict:
+        connection = await connect_db(self.db_path)
+        try:
+            await connection.execute("BEGIN IMMEDIATE")
+            cursor = await connection.execute(
+                "SELECT kind FROM agent WHERE discussion_id = ? AND id = ?",
+                (discussion_id, agent_id),
+            )
+            agent = await cursor.fetchone()
+            if agent is None:
+                raise ValueError("agent does not belong to discussion")
+            cursor = await connection.execute(
+                "SELECT COALESCE(MAX(sequence), 0) + 1 AS next_sequence "
+                "FROM message WHERE discussion_id = ?",
+                (discussion_id,),
+            )
+            sequence = (await cursor.fetchone())["next_sequence"]
+            message = {
+                "id": str(uuid4()),
+                "agent_id": agent_id,
+                "sequence": sequence,
+                "stage": stage,
+                "content": content.strip(),
+                "created_at": utc_now(),
+            }
+            await connection.execute(
+                """INSERT INTO message
+                   (id, discussion_id, agent_id, sequence, stage, content, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    message["id"], discussion_id, agent_id, sequence, stage,
+                    message["content"], message["created_at"],
+                ),
+            )
+            if agent["kind"] == "expert":
+                await connection.execute(
+                    "UPDATE discussion SET expert_turns = expert_turns + 1 WHERE id = ?",
+                    (discussion_id,),
+                )
+            await self._append_event_tx(
+                connection, discussion_id, "message.created", {"message": message}
+            )
+            await connection.commit()
+            return message
+        except BaseException:
+            await connection.rollback()
+            raise
+        finally:
+            await connection.close()
+
+    async def complete(self, discussion_id: str, summary: str) -> None:
+        connection = await connect_db(self.db_path)
+        try:
+            await connection.execute("BEGIN IMMEDIATE")
+            cursor = await connection.execute(
+                "UPDATE discussion SET status = 'completed', summary = ?, updated_at = ? "
+                "WHERE id = ? AND status = 'summarizing'",
+                (summary.strip(), utc_now(), discussion_id),
+            )
+            if cursor.rowcount != 1:
+                raise DiscussionStateConflict("discussion is not summarizing")
+            await self._append_event_tx(
+                connection, discussion_id, "discussion.completed", {"summary": summary.strip()}
+            )
+            await connection.commit()
+        except BaseException:
+            await connection.rollback()
+            raise
+        finally:
+            await connection.close()

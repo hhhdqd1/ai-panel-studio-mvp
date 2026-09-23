@@ -133,3 +133,48 @@ async def test_missing_key_fails_before_http_call():
     with pytest.raises(ModelRequestError) as error:
         await gateway.generate_panel("城市交通", 4)
     assert error.value.error_code == "missing_api_key"
+
+
+@pytest.mark.asyncio
+async def test_intent_drops_private_model_fields_and_keeps_public_summary():
+    request_payloads = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        request_payloads.append(json.loads(request.content))
+        content = {
+            "wants_to_speak": True, "action": "challenge", "target_message_id": "m1",
+            "relevance": 0.8, "novelty": 0.6, "urgency": 0.7,
+            "public_intent": "准备质疑统计口径", "private_reasoning": "不得公开",
+        }
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps(content, ensure_ascii=False)}}]})
+
+    agent = {"id": "a1", "name": "专家一", "title": "研究员", "stance": "谨慎", "specialties": ["教育"]}
+    context = {"discussion_id": "d1", "topic": "教育评价", "stage": "challenge", "messages": []}
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await DeepSeekGateway(api_key="test-secret", client=client).propose_intent(agent, context)
+    assert result["agent_id"] == "a1"
+    assert result["public_intent"] == "准备质疑统计口径"
+    assert "private_reasoning" not in result
+    assert "教育评价" in json.dumps(request_payloads[0], ensure_ascii=False)
+
+
+@pytest.mark.asyncio
+async def test_speech_uses_plain_text_response_and_summary_is_text():
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        requests.append(payload)
+        content = "先做小范围试点。再看长期效果。" if len(requests) == 1 else "讨论认为应先试点，分歧仍需验证。"
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+    agent = {"id": "a1", "name": "专家一", "title": "研究员", "stance": "谨慎", "specialties": ["教育"]}
+    context = {"discussion_id": "d1", "topic": "教育评价", "stage": "exploration", "messages": []}
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        gateway = DeepSeekGateway(api_key="test-secret", client=client)
+        speech = await gateway.generate_speech(agent, context, {"action": "answer", "public_intent": "准备回答"})
+        summary = await gateway.summarize(context)
+    assert speech == "先做小范围试点。再看长期效果。"
+    assert summary == "讨论认为应先试点，分歧仍需验证。"
+    assert "response_format" not in requests[0]
+    assert "response_format" not in requests[1]

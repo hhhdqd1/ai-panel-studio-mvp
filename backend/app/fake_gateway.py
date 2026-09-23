@@ -30,3 +30,41 @@ class FakeGateway:
     async def generate_panel(self, topic: str, count: int) -> list[dict]:
         self.calls.append({"purpose": "panel", "topic": topic, "count": count})
         return self.panel if count == 4 else self._default_panel(count)
+
+    async def propose_intent(self, agent: dict, context: dict) -> dict:
+        self.calls.append(
+            {"purpose": "intent", "discussion_id": context["discussion_id"], "topic": context["topic"]}
+        )
+        index = int(agent["name"][-1]) if agent["name"][-1].isdigit() else 1
+        return {
+            "agent_id": agent["id"],
+            "wants_to_speak": True,
+            "action": "challenge" if context["stage"] == "challenge" else "answer",
+            "target_message_id": context["messages"][-1]["id"] if context["messages"] else None,
+            "relevance": 0.65 + (index % 3) * 0.05,
+            "novelty": 0.7,
+            "urgency": 0.5,
+            "public_intent": "准备提出一个不同视角",
+        }
+
+    async def generate_speech(self, agent: dict, context: dict, intent: dict) -> str:
+        self.calls.append(
+            {"purpose": "speech", "discussion_id": context["discussion_id"], "topic": context["topic"]}
+        )
+        return f"从{agent['name']}的视角看，{context['topic']}需要先界定问题。我们可以用小范围试点观察效果。"
+
+    async def moderate(self, context: dict, kind: str) -> str:
+        self.calls.append(
+            {"purpose": "moderate", "discussion_id": context["discussion_id"], "topic": context["topic"], "kind": kind}
+        )
+        if kind == "opening":
+            return f"欢迎来到圆桌，今天讨论{context['topic']}。请大家先提出各自最重要的判断依据。"
+        if kind == "closing":
+            return "感谢各位的讨论，我们已经看到不同立场与仍需核实的问题。下面作一个简要总结。"
+        return "我们先停下来比较已有论据，再从另一个角度追问这个问题。"
+
+    async def summarize(self, context: dict) -> str:
+        self.calls.append(
+            {"purpose": "summary", "discussion_id": context["discussion_id"], "topic": context["topic"]}
+        )
+        return f"本场围绕{context['topic']}展开了多角度讨论。专家提出试点与长期评估两条路径；具体效果和数字仍待外部核实。"

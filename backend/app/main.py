@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from app.api import router
 from app.db import init_db
 from app.model_gateway import DeepSeekGateway
+from app.orchestrator import Orchestrator
 from app.panel_service import PanelService
 from app.store import Store
 
@@ -29,6 +30,7 @@ def create_app(store: Store, gateway: object | None = None) -> FastAPI:
     app.state.store = store
     app.state.gateway = selected_gateway
     app.state.tasks = {}
+    app.state.runner = Orchestrator(store, selected_gateway, asyncio.Semaphore(4))
 
     def schedule_panel(discussion_id: str) -> None:
         if not hasattr(selected_gateway, "generate_panel"):
