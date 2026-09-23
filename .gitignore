@@ -9,6 +9,7 @@ __pycache__/
 *.py[cod]
 node_modules/
 dist/
+*.tsbuildinfo
 playwright-report/
 test-results/
 *.db
