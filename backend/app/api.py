@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 
+from app.events import event_frames, parse_after
 from app.schemas import CreateDiscussion
 
 
@@ -28,6 +30,22 @@ async def get_discussion(discussion_id: str, request: Request) -> dict:
     if snapshot is None:
         raise HTTPException(status_code=404, detail="讨论不存在")
     return snapshot
+
+
+@router.get("/discussions/{discussion_id}/events")
+async def discussion_events(discussion_id: str, request: Request, after: str | None = None):
+    store = request.app.state.store
+    if await store.get_snapshot(discussion_id) is None:
+        raise HTTPException(status_code=404, detail="讨论不存在")
+    try:
+        cursor = parse_after(request.headers.get("Last-Event-ID"), after)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return StreamingResponse(
+        event_frames(store, discussion_id, cursor, request.is_disconnected),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/discussions/{discussion_id}/start", status_code=202)

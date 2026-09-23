@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,6 +29,40 @@ class DiscussionStateConflict(Exception):
 class Store:
     def __init__(self, db_path: str | Path) -> None:
         self.db_path = Path(db_path)
+        self._event_conditions: dict[str, asyncio.Condition] = {}
+
+    async def _notify_event(self, discussion_id: str) -> None:
+        condition = self._event_conditions.get(discussion_id)
+        if condition is not None:
+            async with condition:
+                condition.notify_all()
+
+    async def wait_for_event(self, discussion_id: str, *, timeout: float) -> None:
+        condition = self._event_conditions.setdefault(discussion_id, asyncio.Condition())
+        async with condition:
+            try:
+                await asyncio.wait_for(condition.wait(), timeout=timeout)
+            except TimeoutError:
+                pass
+
+    async def events_after(self, discussion_id: str, after: int) -> list[dict]:
+        connection = await connect_db(self.db_path)
+        try:
+            cursor = await connection.execute(
+                "SELECT sequence, type, payload_json FROM event "
+                "WHERE discussion_id = ? AND sequence > ? ORDER BY sequence LIMIT 100",
+                (discussion_id, after),
+            )
+            return [
+                {
+                    "sequence": row["sequence"],
+                    "type": row["type"],
+                    "payload": json.loads(row["payload_json"]),
+                }
+                for row in await cursor.fetchall()
+            ]
+        finally:
+            await connection.close()
 
     async def create_discussion(self, topic: str, expert_count: int) -> str:
         discussion_id = str(uuid4())
@@ -166,6 +201,7 @@ class Store:
                 connection, discussion_id, "panel.ready", {"agents": saved_agents}
             )
             await connection.commit()
+            await self._notify_event(discussion_id)
         except BaseException:
             await connection.rollback()
             raise
@@ -199,6 +235,7 @@ class Store:
                 connection, discussion_id, "discussion.status", {"status": status, "stage": stage}
             )
             await connection.commit()
+            await self._notify_event(discussion_id)
             return True
         except BaseException:
             await connection.rollback()
@@ -222,6 +259,7 @@ class Store:
                 connection, discussion_id, "discussion.failed", {"error_code": error_code}
             )
             await connection.commit()
+            await self._notify_event(discussion_id)
         except BaseException:
             await connection.rollback()
             raise
@@ -292,6 +330,7 @@ class Store:
                 connection, discussion_id, "agent.updated", {"agent": agent}
             )
             await connection.commit()
+            await self._notify_event(discussion_id)
             return agent
         except BaseException:
             await connection.rollback()
@@ -344,6 +383,7 @@ class Store:
                 connection, discussion_id, "message.created", {"message": message}
             )
             await connection.commit()
+            await self._notify_event(discussion_id)
             return message
         except BaseException:
             await connection.rollback()
@@ -366,6 +406,7 @@ class Store:
                 connection, discussion_id, "discussion.completed", {"summary": summary.strip()}
             )
             await connection.commit()
+            await self._notify_event(discussion_id)
         except BaseException:
             await connection.rollback()
             raise
@@ -392,6 +433,7 @@ class Store:
             await connection.execute("BEGIN IMMEDIATE")
             sequence = await self._append_event_tx(connection, discussion_id, event_type, payload)
             await connection.commit()
+            await self._notify_event(discussion_id)
             return sequence
         except BaseException:
             await connection.rollback()
@@ -418,6 +460,7 @@ class Store:
                 connection, discussion_id, "insight.updated", {"insight": insight}
             )
             await connection.commit()
+            await self._notify_event(discussion_id)
             return insight
         except BaseException:
             await connection.rollback()
