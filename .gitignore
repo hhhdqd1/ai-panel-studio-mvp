@@ -1,0 +1,15 @@
+.superpowers/
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+node_modules/
+dist/
+playwright-report/
+test-results/
+*.db
+*.db-shm
+*.db-wal
