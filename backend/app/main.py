@@ -24,18 +24,22 @@ def create_app(store: Store, gateway: object | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         await init_db(store.db_path)
+        await store.mark_interrupted()
         yield
 
     app = FastAPI(title="AI Panel Studio", lifespan=lifespan)
     app.state.store = store
     app.state.gateway = selected_gateway
     app.state.tasks = {}
-    app.state.runner = Orchestrator(store, selected_gateway, asyncio.Semaphore(4))
+    app.state.model_semaphore = asyncio.Semaphore(4)
+    app.state.runner = Orchestrator(store, selected_gateway, app.state.model_semaphore)
 
     def schedule_panel(discussion_id: str) -> None:
         if not hasattr(selected_gateway, "generate_panel"):
             return
-        task = asyncio.create_task(PanelService(store, selected_gateway).generate(discussion_id))
+        task = asyncio.create_task(
+            PanelService(store, selected_gateway, app.state.model_semaphore).generate(discussion_id)
+        )
         app.state.tasks[discussion_id] = task
         task.add_done_callback(lambda _: app.state.tasks.pop(discussion_id, None))
 

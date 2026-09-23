@@ -371,3 +371,17 @@ class Store:
             raise
         finally:
             await connection.close()
+
+    async def mark_interrupted(self) -> int:
+        connection = await connect_db(self.db_path)
+        try:
+            cursor = await connection.execute(
+                "SELECT id, status FROM discussion "
+                "WHERE status IN ('generating_panel', 'running', 'summarizing')"
+            )
+            rows = await cursor.fetchall()
+        finally:
+            await connection.close()
+        for row in rows:
+            await self.fail(row["id"], "interrupted", row["status"])
+        return len(rows)

@@ -130,6 +130,14 @@ class Orchestrator:
         experts = [agent for agent in snapshot["agents"] if agent["kind"] == "expert"]
         deadline = monotonic() + 20 * 60
 
+        if (
+            snapshot["messages"]
+            and snapshot["messages"][-1]["agent_id"] == host_id
+            and snapshot["messages"][-1]["stage"] == "closing"
+        ):
+            await self.store.transition(discussion_id, "running", "summarizing", stage="closing")
+            return
+
         if not snapshot["messages"]:
             await self._host_message(discussion_id, host_id, "opening")
             await self.store.transition(discussion_id, "running", "running", stage="exploration")
@@ -191,6 +199,11 @@ class Orchestrator:
             self.call_counts[discussion_id] = await self.store.count_model_runs(discussion_id)
             try:
                 if snapshot["status"] == "running":
+                    for agent in snapshot["agents"]:
+                        if agent["public_status"] == "speaking":
+                            await self.store.update_agent(
+                                discussion_id, agent["id"], "waiting", agent["public_intent"]
+                            )
                     await self._run_running(discussion_id)
                 snapshot = await self.store.get_snapshot(discussion_id)
                 context = self._context(snapshot)

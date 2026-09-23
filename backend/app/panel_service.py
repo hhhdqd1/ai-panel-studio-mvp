@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from time import perf_counter
 
 from app.model_gateway import ModelOutputError, ModelRequestError, validate_panel
@@ -7,9 +8,12 @@ from app.store import DiscussionStateConflict, Store
 
 
 class PanelService:
-    def __init__(self, store: Store, gateway: object) -> None:
+    def __init__(
+        self, store: Store, gateway: object, semaphore: asyncio.Semaphore | None = None
+    ) -> None:
         self.store = store
         self.gateway = gateway
+        self.semaphore = semaphore
 
     async def generate(self, discussion_id: str) -> None:
         snapshot = await self.store.get_snapshot(discussion_id)
@@ -19,7 +23,15 @@ class PanelService:
         error_code = None
         skipped = False
         try:
-            raw_agents = await self.gateway.generate_panel(snapshot["topic"], snapshot["expert_count"])
+            if self.semaphore is None:
+                raw_agents = await self.gateway.generate_panel(
+                    snapshot["topic"], snapshot["expert_count"]
+                )
+            else:
+                async with self.semaphore:
+                    raw_agents = await self.gateway.generate_panel(
+                        snapshot["topic"], snapshot["expert_count"]
+                    )
             agents = validate_panel({"agents": raw_agents}, snapshot["expert_count"])
             await self.store.replace_panel(discussion_id, agents)
         except DiscussionStateConflict:
