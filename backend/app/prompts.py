@@ -88,3 +88,28 @@ def summary_messages(context: dict) -> list[dict[str, str]]:
         },
         {"role": "user", "content": json.dumps(context, ensure_ascii=False)},
     ]
+
+
+def review_messages(context: dict, message: dict) -> list[dict[str, str]]:
+    return [
+        {
+            "role": "system",
+            "content": (
+                "你是圆桌讨论的独立审查员，不是事实核验器。只输出 JSON 对象："
+                "consensus/disagreements/open_questions 为含 text、message_ids 的数组；"
+                "claim_flags 为含 message_id、quote、reason_code、explanation、status 的数组。"
+                "reason_code 只能是 record_conflict、unsupported_source、needs_external_check；"
+                "status 只能是 open 或 clarified，clarified 仅代表已补充说明，不代表真实。"
+                "只标记具体且影响结论的可核查断言，优先考虑数字、日期、具名研究、引文及记录矛盾；"
+                "普通立场与价值判断不标记。quote 必须逐字摘自给定发言，message_id 必须来自给定记录；"
+                "record_conflict 还须给出 conflicts_with_message_id。共识或分歧须指向支持它的发言 ID；"
+                "证据不足就留空。没有外部检索源，绝不输出真实、已证实或已核实结论。"
+                "每次最多输出 3 条重要风险，不输出隐藏推理。"
+            ),
+        },
+        {
+            "role": "user",
+            "content": "本场上下文：" + json.dumps(context, ensure_ascii=False)
+            + "\n新发言：" + json.dumps(message, ensure_ascii=False),
+        },
+    ]

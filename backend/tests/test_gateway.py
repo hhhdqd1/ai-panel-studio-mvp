@@ -178,3 +178,23 @@ async def test_speech_uses_plain_text_response_and_summary_is_text():
     assert summary == "讨论认为应先试点，分歧仍需验证。"
     assert "response_format" not in requests[0]
     assert "response_format" not in requests[1]
+
+
+@pytest.mark.asyncio
+async def test_review_uses_structured_output_without_claiming_verification():
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(json.loads(request.content))
+        result = {
+            "consensus": [], "disagreements": [], "open_questions": [],
+            "claim_flags": [{"message_id": "m1", "quote": "增长 83%", "reason_code": "needs_external_check", "explanation": "缺少来源", "status": "open"}],
+        }
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps(result, ensure_ascii=False)}}]})
+
+    context = {"discussion_id": "d1", "topic": "教育评价", "stage": "exploration", "messages": []}
+    message = {"id": "m1", "agent_id": "a1", "content": "增长 83%，但来源不明。"}
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await DeepSeekGateway(api_key="test-secret", client=client).review(context, message)
+    assert result["claim_flags"][0]["reason_code"] == "needs_external_check"
+    assert requests[0]["response_format"] == {"type": "json_object"}

@@ -6,6 +6,7 @@ from time import monotonic, perf_counter
 from typing import Awaitable, Callable, TypeVar
 
 from app.model_gateway import ModelOutputError, ModelRequestError
+from app.review import merge_insight, sanitize_review
 from app.selector import select_speaker
 from app.store import Store
 
@@ -176,10 +177,42 @@ class Orchestrator:
             )
             if not speech_is_short(speech):
                 raise ModelOutputError("speech_length_invalid")
-            await self.store.append_message(discussion_id, agent["id"], snapshot["stage"], speech)
+            message = await self.store.append_message(
+                discussion_id, agent["id"], snapshot["stage"], speech
+            )
             await self.store.update_agent(
                 discussion_id, agent["id"], "waiting", str(selected.get("public_intent") or "")
             )
+
+            reviewed_snapshot = await self.store.get_snapshot(discussion_id)
+            review_context = self._context(reviewed_snapshot)
+            try:
+                raw_review = await self._model_call(
+                    discussion_id, "review", self.gateway.review, review_context, message
+                )
+                known_messages = {
+                    item["id"]: item["content"] for item in reviewed_snapshot["messages"]
+                }
+                cleaned = sanitize_review(raw_review, set(known_messages), known_messages)
+            except Exception:
+                await self.store.append_event(
+                    discussion_id, "insight.review_unavailable", {"message_id": message["id"]}
+                )
+            else:
+                merged = merge_insight(reviewed_snapshot["insight"], cleaned)
+                await self.store.save_insight(discussion_id, merged)
+                has_open_risk = any(flag["status"] == "open" for flag in cleaned["claim_flags"])
+                if (
+                    has_open_risk
+                    and snapshot["stage"] in {"exploration", "challenge"}
+                    and not await self.store.has_fact_followup(discussion_id, snapshot["stage"])
+                ):
+                    await self._host_message(discussion_id, host_id, "fact_check_followup")
+                    await self.store.append_event(
+                        discussion_id,
+                        "moderator.fact_followup",
+                        {"stage": snapshot["stage"], "message_id": message["id"]},
+                    )
 
             next_stage = stage_for_turns(snapshot["expert_turns"] + 1)
             if next_stage != snapshot["stage"] and next_stage != "closing":

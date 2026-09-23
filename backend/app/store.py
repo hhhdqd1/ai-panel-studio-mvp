@@ -385,3 +385,57 @@ class Store:
         for row in rows:
             await self.fail(row["id"], "interrupted", row["status"])
         return len(rows)
+
+    async def append_event(self, discussion_id: str, event_type: str, payload: dict) -> int:
+        connection = await connect_db(self.db_path)
+        try:
+            await connection.execute("BEGIN IMMEDIATE")
+            sequence = await self._append_event_tx(connection, discussion_id, event_type, payload)
+            await connection.commit()
+            return sequence
+        except BaseException:
+            await connection.rollback()
+            raise
+        finally:
+            await connection.close()
+
+    async def save_insight(self, discussion_id: str, insight: dict) -> dict:
+        connection = await connect_db(self.db_path)
+        try:
+            await connection.execute("BEGIN IMMEDIATE")
+            cursor = await connection.execute(
+                "SELECT COALESCE(MAX(version), 0) + 1 AS next_version "
+                "FROM insight WHERE discussion_id = ?",
+                (discussion_id,),
+            )
+            version = (await cursor.fetchone())["next_version"]
+            await connection.execute(
+                "INSERT INTO insight (id, discussion_id, version, content_json, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (str(uuid4()), discussion_id, version, json.dumps(insight, ensure_ascii=False), utc_now()),
+            )
+            await self._append_event_tx(
+                connection, discussion_id, "insight.updated", {"insight": insight}
+            )
+            await connection.commit()
+            return insight
+        except BaseException:
+            await connection.rollback()
+            raise
+        finally:
+            await connection.close()
+
+    async def has_fact_followup(self, discussion_id: str, stage: str) -> bool:
+        connection = await connect_db(self.db_path)
+        try:
+            cursor = await connection.execute(
+                "SELECT payload_json FROM event WHERE discussion_id = ? "
+                "AND type = 'moderator.fact_followup'",
+                (discussion_id,),
+            )
+            return any(
+                json.loads(row["payload_json"]).get("stage") == stage
+                for row in await cursor.fetchall()
+            )
+        finally:
+            await connection.close()

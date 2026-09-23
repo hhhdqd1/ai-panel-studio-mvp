@@ -12,6 +12,7 @@ from app.prompts import (
     intent_messages,
     moderator_messages,
     panel_messages,
+    review_messages,
     speech_messages,
     summary_messages,
 )
@@ -131,6 +132,17 @@ class DeepSeekGateway:
 
     async def summarize(self, context: dict) -> str:
         return await self._chat_text(summary_messages(context))
+
+    async def review(self, context: dict, message: dict) -> dict:
+        def validate_review_shape(payload: dict) -> dict:
+            keys = ("consensus", "disagreements", "open_questions", "claim_flags")
+            if any(not isinstance(payload.get(key), list) for key in keys):
+                raise ModelOutputError("invalid_review_shape")
+            return payload
+
+        return await self._chat_json(
+            review_messages(context, message), validate_review_shape
+        )
 
     async def _chat_json(
         self, messages: list[dict[str, str]], validator: Callable[[dict], T]

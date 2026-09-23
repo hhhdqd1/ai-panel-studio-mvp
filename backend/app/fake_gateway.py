@@ -51,7 +51,11 @@ class FakeGateway:
         self.calls.append(
             {"purpose": "speech", "discussion_id": context["discussion_id"], "topic": context["topic"]}
         )
-        return f"从{agent['name']}的视角看，{context['topic']}需要先界定问题。我们可以用小范围试点观察效果。"
+        if context["expert_turns"] == 2:
+            return "有统计声称83%的参与者获益，但来源尚未提供。这个数字不能直接当作结论。"
+        if agent["name"].endswith(("2", "4")):
+            return f"从{agent['name']}的视角看，{context['topic']}不宜过早推广。我们应先核对成本与长期影响。"
+        return f"从{agent['name']}的视角看，{context['topic']}可以先做小范围试点。我们再根据证据评估效果。"
 
     async def moderate(self, context: dict, kind: str) -> str:
         self.calls.append(
@@ -67,4 +71,42 @@ class FakeGateway:
         self.calls.append(
             {"purpose": "summary", "discussion_id": context["discussion_id"], "topic": context["topic"]}
         )
-        return f"本场围绕{context['topic']}展开了多角度讨论。专家提出试点与长期评估两条路径；具体效果和数字仍待外部核实。"
+        return f"本场围绕{context['topic']}展开了多角度讨论。专家提出试点与长期评估两条路径；具体效果和数字待核实。"
+
+    async def review(self, context: dict, message: dict) -> dict:
+        self.calls.append(
+            {
+                "purpose": "review", "discussion_id": context["discussion_id"],
+                "topic": context["topic"], "message_id": message["id"],
+            }
+        )
+        messages = context["messages"]
+        flags = []
+        questions = []
+        if "83%的参与者获益" in message["content"]:
+            flags.append(
+                {
+                    "message_id": message["id"],
+                    "quote": "83%的参与者获益",
+                    "reason_code": "needs_external_check",
+                    "explanation": "具体数字未附可追溯来源",
+                    "status": "open",
+                }
+            )
+            questions.append(
+                {"text": "这项统计的来源和适用范围是什么？", "message_ids": [message["id"]]}
+            )
+        cautious = next((item for item in messages if "不宜过早推广" in item["content"]), None)
+        proactive = next((item for item in messages if "先做小范围试点" in item["content"]), None)
+        disagreements = []
+        if cautious is not None and proactive is not None:
+            disagreements.append(
+                {
+                    "text": "对试点之后的推进速度存在不同看法",
+                    "message_ids": [proactive["id"], cautious["id"]],
+                }
+            )
+        return {
+            "consensus": [], "disagreements": disagreements,
+            "open_questions": questions, "claim_flags": flags,
+        }
