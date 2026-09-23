@@ -28,3 +28,18 @@ async def get_discussion(discussion_id: str, request: Request) -> dict:
     if snapshot is None:
         raise HTTPException(status_code=404, detail="讨论不存在")
     return snapshot
+
+
+@router.post("/discussions/{discussion_id}/resume", status_code=202)
+async def resume_panel(discussion_id: str, request: Request) -> dict:
+    store = request.app.state.store
+    snapshot = await store.get_snapshot(discussion_id)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="讨论不存在")
+    if snapshot["status"] != "failed" or snapshot["resume_point"] != "generating_panel":
+        raise HTTPException(status_code=409, detail="当前状态不可继续生成阵容")
+    changed = await store.transition(discussion_id, "failed", "generating_panel")
+    if not changed:
+        raise HTTPException(status_code=409, detail="讨论状态已改变")
+    request.app.state.schedule_panel(discussion_id)
+    return {"id": discussion_id, "status": "generating_panel"}
