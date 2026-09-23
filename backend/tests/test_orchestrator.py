@@ -70,3 +70,51 @@ def test_speech_length_contract_is_one_or_two_short_sentences():
     assert speech_is_short("先做小范围试点。再跟踪长期效果。")
     assert not speech_is_short("先试点。再评估。最后推广。")
     assert not speech_is_short("")
+
+
+@pytest.mark.asyncio
+async def test_fake_gateway_speech_remains_short_with_question_topic():
+    gateway = FakeGateway()
+    agent = {"name": "周雅宁"}
+    context = {
+        "discussion_id": "demo", "topic": "中小学是否应该引入 AI 个性化学习助手？",
+        "stage": "exploration", "expert_turns": 0,
+    }
+    speech = await gateway.generate_speech(agent, context, {})
+    assert speech_is_short(speech)
+
+
+@pytest.mark.asyncio
+async def test_fake_gateway_uses_seeded_expert_stances():
+    gateway = FakeGateway()
+    context = {
+        "discussion_id": "demo", "topic": "AI 与教育？",
+        "stage": "exploration", "expert_turns": 0,
+    }
+    supportive = await gateway.generate_speech(
+        {"name": "支持者", "stance": "主张小范围试点"}, context, {}
+    )
+    cautious = await gateway.generate_speech(
+        {"name": "审慎者", "stance": "担忧依赖风险"}, context, {}
+    )
+    assert "支持先做小范围试点" in supportive
+    assert "成本与风险" in cautious
+    assert speech_is_short(supportive) and speech_is_short(cautious)
+
+
+@pytest.mark.asyncio
+async def test_experts_publicly_raise_hands_before_speaking(store):
+    gateway = FakeGateway()
+    discussion_id = await ready_discussion(store, "教育评价", gateway)
+    app = create_app(store=store, gateway=gateway)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        assert (await client.post(f"/api/discussions/{discussion_id}/start")).status_code == 202
+        assert (await wait_for_terminal(store, discussion_id))["status"] == "completed"
+    events = await store.events_after(discussion_id, 0)
+    statuses = [
+        event["payload"]["agent"]["public_status"]
+        for event in events if event["type"] == "agent.updated"
+    ]
+    assert "raised" in statuses
+    assert "speaking" in statuses
+    assert statuses.index("raised") < statuses.index("speaking")

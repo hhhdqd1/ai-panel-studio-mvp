@@ -53,9 +53,14 @@ class FakeGateway:
         )
         if context["expert_turns"] == 2:
             return "有统计声称83%的参与者获益，但来源尚未提供。这个数字不能直接当作结论。"
-        if agent["name"].endswith(("2", "4")):
-            return f"从{agent['name']}的视角看，{context['topic']}不宜过早推广。我们应先核对成本与长期影响。"
-        return f"从{agent['name']}的视角看，{context['topic']}可以先做小范围试点。我们再根据证据评估效果。"
+        topic = context["topic"].rstrip("？?。！! ")
+        cautious_stance = any(
+            word in agent.get("stance", "")
+            for word in ("担忧", "风险", "反对", "审慎", "不主张", "警惕", "优先关注")
+        )
+        if cautious_stance or agent["name"].endswith(("2", "4")):
+            return f"关于“{topic}”，{agent['name']}担心贸然推广会放大成本与风险，不宜过早推广。我们应先核对长期影响。"
+        return f"关于“{topic}”，{agent['name']}支持先做小范围试点。我们再根据证据评估效果。"
 
     async def moderate(self, context: dict, kind: str) -> str:
         self.calls.append(

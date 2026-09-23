@@ -154,6 +154,14 @@ class Orchestrator:
             context = self._context(snapshot)
             intents = await self._collect_intents(discussion_id, experts, context)
             expert_ids = {agent["id"] for agent in experts}
+            for intent in intents:
+                if intent.get("agent_id") in expert_ids:
+                    await self.store.update_agent(
+                        discussion_id,
+                        intent["agent_id"],
+                        "raised",
+                        str(intent.get("public_intent") or ""),
+                    )
             recent = [
                 message["agent_id"]
                 for message in snapshot["messages"]
@@ -219,6 +227,12 @@ class Orchestrator:
                 await self.store.transition(discussion_id, "running", "running", stage=next_stage)
                 await self._host_message(discussion_id, host_id, next_stage)
 
+        closing_snapshot = await self.store.get_snapshot(discussion_id)
+        for agent in closing_snapshot["agents"]:
+            if agent["public_status"] == "raised":
+                await self.store.update_agent(
+                    discussion_id, agent["id"], "waiting", agent["public_intent"]
+                )
         await self.store.transition(discussion_id, "running", "running", stage="closing")
         await self._host_message(discussion_id, host_id, "closing")
         await self.store.transition(discussion_id, "running", "summarizing", stage="closing")
@@ -233,7 +247,7 @@ class Orchestrator:
             try:
                 if snapshot["status"] == "running":
                     for agent in snapshot["agents"]:
-                        if agent["public_status"] == "speaking":
+                        if agent["public_status"] in {"speaking", "raised"}:
                             await self.store.update_agent(
                                 discussion_id, agent["id"], "waiting", agent["public_intent"]
                             )
