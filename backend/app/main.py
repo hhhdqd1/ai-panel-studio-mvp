@@ -9,6 +9,7 @@ from fastapi import FastAPI
 
 from app.api import router
 from app.db import init_db
+from app.fake_gateway import FakeGateway
 from app.model_gateway import DeepSeekGateway
 from app.orchestrator import Orchestrator
 from app.panel_service import PanelService
@@ -20,7 +21,9 @@ DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "data" / "panel.sqlit
 
 
 def create_app(store: Store, gateway: object | None = None) -> FastAPI:
-    selected_gateway = gateway if gateway is not None else DeepSeekGateway()
+    selected_gateway = gateway if gateway is not None else (
+        FakeGateway() if os.getenv("APP_FAKE_MODEL") == "1" else DeepSeekGateway()
+    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):

@@ -16,7 +16,7 @@ export default function Transcript({ snapshot, activeMessageId }: Props) {
           const agent = snapshot.agents.find((item) => item.id === message.agent_id);
           const active = message.id === (activeMessageId ?? snapshot.messages.at(-1)?.id);
           return (
-            <article id={`message-${message.id}`} className={`transcript-entry ${active ? 'entry-active' : ''}`} data-active={active ? 'true' : undefined} key={message.id}>
+            <article id={`message-${message.id}`} data-testid="transcript-message" className={`transcript-entry ${active ? 'entry-active' : ''}`} data-active={active ? 'true' : undefined} key={message.id}>
               <div className="entry-rail"><span className="entry-node" /><span className="entry-line" /></div>
               <div className="entry-content"><div className="entry-meta"><strong>{agent?.name ?? '发言者'}</strong><span>{agent?.kind === 'host' ? '主持人' : agent?.title}</span><em>{stageLabel[message.stage] ?? message.stage}</em></div><p>{message.content}</p><span className="entry-sequence">#{String(message.sequence).padStart(2, '0')}</span></div>
             </article>

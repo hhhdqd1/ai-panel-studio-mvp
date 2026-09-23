@@ -4,6 +4,9 @@ import sqlite3
 
 import pytest
 
+from app.fake_gateway import FakeGateway
+from app.main import create_app
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
@@ -57,3 +60,10 @@ async def test_database_has_required_tables_and_wal(store):
         journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
     assert {"discussion", "agent", "message", "event", "insight", "model_run"} <= tables
     assert journal_mode == "wal"
+
+
+def test_explicit_fake_mode_never_uses_environment_deepseek_key(store, monkeypatch):
+    monkeypatch.setenv("APP_FAKE_MODEL", "1")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "do-not-use-this-test-key")
+    app = create_app(store=store)
+    assert isinstance(app.state.gateway, FakeGateway)
