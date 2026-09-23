@@ -80,6 +80,55 @@ class Store:
             await connection.close()
         return discussion_id
 
+    async def insert_seed_discussion(
+        self, discussion_id: str, topic: str, agents: list[dict]
+    ) -> bool:
+        """Insert a ready-made example once, without mutating an existing discussion."""
+        connection = await connect_db(self.db_path)
+        try:
+            await connection.execute("BEGIN IMMEDIATE")
+            now = utc_now()
+            cursor = await connection.execute(
+                "INSERT OR IGNORE INTO discussion "
+                "(id, topic, expert_count, status, created_at, updated_at) "
+                "VALUES (?, ?, ?, 'awaiting_confirmation', ?, ?)",
+                (discussion_id, topic, len(agents) - 1, now, now),
+            )
+            if cursor.rowcount == 0:
+                await connection.rollback()
+                return False
+
+            saved_agents = []
+            for agent in agents:
+                saved = {
+                    "id": str(uuid4()),
+                    **agent,
+                    "public_status": "waiting",
+                    "public_intent": "",
+                }
+                await connection.execute(
+                    "INSERT INTO agent "
+                    "(id, discussion_id, kind, name, title, stance, specialties_json, color) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        saved["id"], discussion_id, saved["kind"], saved["name"],
+                        saved["title"], saved["stance"],
+                        json.dumps(saved["specialties"], ensure_ascii=False), saved["color"],
+                    ),
+                )
+                saved_agents.append(saved)
+            await self._append_event_tx(
+                connection, discussion_id, "panel.ready", {"agents": saved_agents}
+            )
+            await connection.commit()
+            await self._notify_event(discussion_id)
+            return True
+        except BaseException:
+            await connection.rollback()
+            raise
+        finally:
+            await connection.close()
+
     async def list_discussions(self) -> list[dict]:
         connection = await connect_db(self.db_path)
         try:

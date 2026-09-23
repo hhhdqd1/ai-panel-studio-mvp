@@ -1,0 +1,57 @@
+[
+  {
+    "key": "education-ai-tutor",
+    "topic": "中小学是否应该引入 AI 个性化学习助手？",
+    "agents": [
+      {"kind":"host","name":"许闻舟","title":"教育圆桌主持人","stance":"中立梳理，追问可验证的效果","specialties":["教育政策","公共讨论"],"color":"#E8B86D"},
+      {"kind":"expert","name":"周雅宁","title":"一线中学教师","stance":"支持辅助教学，但反对替代教师判断","specialties":["课堂实践","学习反馈"],"color":"#79B6A7"},
+      {"kind":"expert","name":"陈祎","title":"教育技术产品负责人","stance":"主张小范围试点并快速迭代","specialties":["学习系统","产品评估"],"color":"#A89BD1"},
+      {"kind":"expert","name":"高沅","title":"儿童发展研究者","stance":"优先关注依赖风险和认知发展","specialties":["儿童心理","长期影响"],"color":"#E49883"},
+      {"kind":"expert","name":"罗思敏","title":"县域学校校长","stance":"担忧数字鸿沟与经费可持续性","specialties":["学校管理","教育公平"],"color":"#82A9CF"}
+    ]
+  },
+  {
+    "key": "urban-traffic",
+    "topic": "城市中心区应否优先建设自动驾驶接驳网络？",
+    "agents": [
+      {"kind":"host","name":"梁知远","title":"城市议题主持人","stance":"中立协调成本、安全与公平","specialties":["城市治理","公共讨论"],"color":"#E8B86D"},
+      {"kind":"expert","name":"孙亦亭","title":"交通规划师","stance":"支持与公共交通接驳，不主张单独扩张","specialties":["线网规划","出行效率"],"color":"#79B6A7"},
+      {"kind":"expert","name":"薛明澈","title":"自动驾驶工程师","stance":"认为限定路线可先行试点","specialties":["感知系统","安全验证"],"color":"#A89BD1"},
+      {"kind":"expert","name":"吴芷若","title":"无障碍出行倡导者","stance":"先证明对老年人和残障者真正可用","specialties":["无障碍设计","用户体验"],"color":"#E49883"},
+      {"kind":"expert","name":"彭一鸣","title":"公共财政分析师","stance":"要求比较全生命周期成本","specialties":["财政预算","成本收益"],"color":"#82A9CF"}
+    ]
+  },
+  {
+    "key": "public-health-communication",
+    "topic": "公共健康信息如何在社交平台上传播而不制造恐慌？",
+    "agents": [
+      {"kind":"host","name":"陆清言","title":"健康传播主持人","stance":"中立追问证据与传播责任","specialties":["风险沟通","公众参与"],"color":"#E8B86D"},
+      {"kind":"expert","name":"贺雨辰","title":"流行病学研究者","stance":"主张明确区分已知与未知","specialties":["证据评估","不确定性表达"],"color":"#79B6A7"},
+      {"kind":"expert","name":"孟书凝","title":"社区卫生工作者","stance":"认为信息应先回答居民具体疑问","specialties":["社区服务","健康教育"],"color":"#A89BD1"},
+      {"kind":"expert","name":"白景修","title":"平台内容治理顾问","stance":"支持快速纠错但警惕过度删帖","specialties":["平台治理","信息审核"],"color":"#E49883"},
+      {"kind":"expert","name":"方予安","title":"科学记者","stance":"强调可追溯来源与清晰标题","specialties":["科学写作","事实核查"],"color":"#82A9CF"}
+    ]
+  },
+  {
+    "key": "open-ai-governance",
+    "topic": "开源 AI 模型应如何平衡创新与滥用风险？",
+    "agents": [
+      {"kind":"host","name":"沈观棋","title":"技术治理主持人","stance":"中立呈现开放与管控的取舍","specialties":["AI 治理","多方协商"],"color":"#E8B86D"},
+      {"kind":"expert","name":"韩嘉禾","title":"开源社区维护者","stance":"主张开放权重并完善责任机制","specialties":["开源协作","模型发布"],"color":"#79B6A7"},
+      {"kind":"expert","name":"杜启航","title":"AI 安全研究员","stance":"高风险能力应分级披露","specialties":["风险测试","红队评估"],"color":"#A89BD1"},
+      {"kind":"expert","name":"叶澄","title":"创业公司技术负责人","stance":"担忧封闭生态抬高创新门槛","specialties":["应用创新","开发者生态"],"color":"#E49883"},
+      {"kind":"expert","name":"钟可心","title":"数字权利律师","stance":"要求透明问责和可申诉渠道","specialties":["数字权利","责任分配"],"color":"#82A9CF"}
+    ]
+  },
+  {
+    "key": "traditional-culture",
+    "topic": "传统文化短视频传播应更重准确性还是趣味性？",
+    "agents": [
+      {"kind":"host","name":"顾言珂","title":"文化圆桌主持人","stance":"中立推动创作者与研究者对话","specialties":["文化传播","访谈"],"color":"#E8B86D"},
+      {"kind":"expert","name":"董青岚","title":"民俗学研究者","stance":"核心史实不可为流量让步","specialties":["民俗研究","史料核对"],"color":"#79B6A7"},
+      {"kind":"expert","name":"马子溪","title":"短视频创作者","stance":"趣味是打开理解入口的必要条件","specialties":["叙事设计","视频创作"],"color":"#A89BD1"},
+      {"kind":"expert","name":"邵文隽","title":"博物馆教育策展人","stance":"用分层内容兼顾入门与严谨","specialties":["展览教育","知识转译"],"color":"#E49883"},
+      {"kind":"expert","name":"秦舒颐","title":"非遗传承人","stance":"关注在地社区声音与收益分配","specialties":["非遗实践","社区参与"],"color":"#82A9CF"}
+    ]
+  }
+]

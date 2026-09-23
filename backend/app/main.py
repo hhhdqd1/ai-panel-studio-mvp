@@ -12,6 +12,7 @@ from app.db import init_db
 from app.model_gateway import DeepSeekGateway
 from app.orchestrator import Orchestrator
 from app.panel_service import PanelService
+from app.seeds import seed_examples
 from app.store import Store
 
 
@@ -25,6 +26,7 @@ def create_app(store: Store, gateway: object | None = None) -> FastAPI:
     async def lifespan(_: FastAPI):
         await init_db(store.db_path)
         await store.mark_interrupted()
+        await seed_examples(store)
         yield
 
     app = FastAPI(title="AI Panel Studio", lifespan=lifespan)
