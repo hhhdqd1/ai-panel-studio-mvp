@@ -1,17 +1,13 @@
-import { BrowserRouter, Link, Route, Routes, useParams } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import HomePage from './pages/HomePage';
-
-function DiscussionRoute() {
-  const { id } = useParams();
-  return <main className="route-placeholder"><Link to="/">← 返回首页</Link><h1>圆桌演播厅</h1><p>讨论编号：{id}</p></main>;
-}
+import DiscussionPage from './pages/DiscussionPage';
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/discussions/:id" element={<DiscussionRoute />} />
+        <Route path="/discussions/:id" element={<DiscussionPage />} />
       </Routes>
     </BrowserRouter>
   );

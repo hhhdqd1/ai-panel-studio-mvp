@@ -57,10 +57,16 @@ export type DiscussionSnapshot = DiscussionListItem & {
   expert_turns: number;
 };
 
-export type DiscussionEvent = {
-  sequence: number;
-  type: string;
-  payload: Record<string, unknown>;
-};
+type Sequenced<T extends string, P> = { sequence: number; type: T; payload: P };
+export type DiscussionEvent =
+  | Sequenced<'discussion.status', { status: DiscussionStatus; stage: string | null }>
+  | Sequenced<'panel.ready', { agents: Agent[] }>
+  | Sequenced<'agent.updated', { agent: Agent }>
+  | Sequenced<'message.created', { message: Message }>
+  | Sequenced<'insight.updated', { insight: Insight }>
+  | Sequenced<'discussion.completed', { summary: string }>
+  | Sequenced<'discussion.failed', { error_code: string }>
+  | Sequenced<'insight.review_unavailable', { message_id: string }>
+  | Sequenced<'moderator.fact_followup', { message_id: string; stage: string }>;
 
 export type CreateDiscussionInput = { topic: string; expert_count: number };
