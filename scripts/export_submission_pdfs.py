@@ -124,8 +124,8 @@ def main() -> None:
     args.output.mkdir(parents=True, exist_ok=True)
     register_fonts()
     for source_name, output_name in (
-        ("prompt-log.md", "核心Prompt记录.pdf"),
-        ("workflow.md", "开发流程与工作流说明.pdf"),
+        ("prompt-log.md", "prompt-log.pdf"),
+        ("workflow.md", "workflow.pdf"),
     ):
         source = ROOT / "docs" / source_name
         target = args.output / output_name
