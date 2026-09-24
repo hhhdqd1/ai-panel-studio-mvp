@@ -18,7 +18,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer
+from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -71,20 +71,30 @@ def styles() -> dict[str, ParagraphStyle]:
 def flowables(markdown: str, *, prompt_log: bool = False) -> list:
     style = styles()
     blocks = []
+    section = None
     for raw in markdown.splitlines():
         line = raw.strip()
         if not line:
             continue
         if line.startswith("# "):
-            blocks.append(Paragraph(markup(line[2:]), style["title"]))
+            item = Paragraph(markup(line[2:]), style["title"])
         elif re.match(r"^\d+\.\s", line):
-            if prompt_log and line.startswith("4. "):
-                blocks.append(PageBreak())
-            blocks.append(Paragraph(markup(line), style["section"]))
+            if prompt_log:
+                if section is not None:
+                    blocks.append(KeepTogether(section))
+                section = [Paragraph(markup(line), style["section"])]
+                continue
+            item = Paragraph(markup(line), style["section"])
         elif line.startswith(">"):
-            blocks.append(Paragraph(markup(line[1:]), style["note"]))
+            item = Paragraph(markup(line[1:]), style["note"])
         else:
-            blocks.append(Paragraph(markup(line), style["body"]))
+            item = Paragraph(markup(line), style["body"])
+        if section is not None:
+            section.append(item)
+        else:
+            blocks.append(item)
+    if section is not None:
+        blocks.append(KeepTogether(section))
     blocks.append(Spacer(1, 2 * mm))
     return blocks
 

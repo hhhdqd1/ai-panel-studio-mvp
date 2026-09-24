@@ -5,7 +5,7 @@
 ## 文件
 
 1. `AI-Panel-Studio-MVP.zip`：完整源码、数据库初始化逻辑、五条高质量示例数据、README、技术与 API 说明、测试、三张浏览器截图，以及本清单。压缩包不含真实 API Key、运行数据库或依赖目录。
-2. `核心Prompt记录.pdf`：六段真实对话摘录，明确标记 SDD、DDD、TDD、E2E 阶段；压缩包内对应 `docs/submission/prompt-log.pdf`，可编辑原件为 `核心Prompt记录.md`。
+2. `核心Prompt记录.pdf`：六段依据项目实际产物专业化重构的可复用 Prompt，明确标记 SDD、DDD、TDD、E2E 阶段并附逐段说明；它们不是历史对话逐字记录。压缩包内对应 `docs/submission/prompt-log.pdf`，可编辑原件为 `核心Prompt记录.md`。
 3. `开发流程与工作流说明.pdf`：一页 A4 的开发过程、典型问题与 AI 协作说明；压缩包内对应 `docs/submission/workflow.pdf`，可编辑原件为 `开发流程与工作流说明.md`。
 4. `项目运行说明.md`、三张演示截图及 `真实DeepSeek冒烟记录.md`：供评审快速查看，也已包含在源码压缩包中。
 
