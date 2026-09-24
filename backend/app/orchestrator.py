@@ -101,7 +101,9 @@ class Orchestrator:
             "insight": snapshot["insight"],
         }
 
-    async def _collect_intents(self, discussion_id: str, experts: list[dict], context: dict) -> list[dict]:
+    async def _collect_intents(
+        self, discussion_id: str, experts: list[dict], context: dict
+    ) -> tuple[list[dict], bool]:
         results = await asyncio.gather(
             *(
                 self._model_call(
@@ -111,11 +113,12 @@ class Orchestrator:
             ),
             return_exceptions=True,
         )
+        valid = [result for result in results if isinstance(result, dict)]
         return [
             result
-            for result in results
-            if isinstance(result, dict) and result.get("wants_to_speak") is True
-        ]
+            for result in valid
+            if result.get("wants_to_speak") is True
+        ], not valid
 
     async def _host_message(self, discussion_id: str, host_id: str, kind: str) -> None:
         snapshot = await self.store.get_snapshot(discussion_id)
@@ -144,15 +147,28 @@ class Orchestrator:
             await self.store.transition(discussion_id, "running", "running", stage="exploration")
 
         empty_rounds = 0
+        failed_intent_rounds = 0
         while True:
             snapshot = await self.store.get_snapshot(discussion_id)
             if snapshot["expert_turns"] >= 12 or monotonic() >= deadline:
                 break
-            if self.call_counts[discussion_id] >= 98:
+            # An entire round needs one intent call per expert, plus speech and
+            # review. Keep room for stage/fact-followup, closing, summary and a
+            # retry so even a six-expert panel can finish below the hard cap.
+            if self.call_counts[discussion_id] + len(experts) + 2 + 5 > 100:
+                if failed_intent_rounds or snapshot["expert_turns"] == 0:
+                    raise ModelRequestError("model_call_limit")
                 break
 
             context = self._context(snapshot)
-            intents = await self._collect_intents(discussion_id, experts, context)
+            intents, all_failed = await self._collect_intents(discussion_id, experts, context)
+            if all_failed:
+                failed_intent_rounds += 1
+                if failed_intent_rounds >= 2:
+                    raise ModelRequestError("all_intents_failed")
+                await self._host_message(discussion_id, host_id, "reframe")
+                continue
+            failed_intent_rounds = 0
             expert_ids = {agent["id"] for agent in experts}
             for intent in intents:
                 if intent.get("agent_id") in expert_ids:
@@ -269,4 +285,6 @@ class Orchestrator:
                         else "invalid_model_output" if isinstance(error, ModelOutputError)
                         else "orchestration_error"
                     )
+                    if self.call_counts[discussion_id] >= 100:
+                        error_code = "model_call_limit"
                     await self.store.fail(discussion_id, error_code, point)

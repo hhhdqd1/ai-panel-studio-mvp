@@ -29,12 +29,13 @@ export default function Roundtable({ snapshot }: Props) {
   const experts = snapshot.agents.filter((agent) => agent.kind === 'expert');
   const latestAgentId = snapshot.messages.at(-1)?.agent_id;
   const activeAgentId = snapshot.agents.find((agent) => agent.public_status === 'speaking')?.id ?? latestAgentId;
+  const latestHostMessage = host && snapshot.messages.slice().reverse().find((message) => message.agent_id === host.id && message.stage !== 'closing');
   return (
     <section className="roundtable-panel" aria-label="圆桌席位">
       <div className="panel-kicker"><span className="tiny-square" /> THE ROUNDTABLE <span className="panel-kicker-right">{snapshot.agents.length} / 席位</span></div>
       <div className="table-stage">
         <div className="table-orbit orbit-a" aria-hidden="true" /><div className="table-orbit orbit-b" aria-hidden="true" />
-        <div className="table-surface"><span>讨论议题</span><strong>{snapshot.topic}</strong><small>IDEAS IN MOTION</small></div>
+        <div className="table-surface"><span>{latestHostMessage ? '当前问题' : '讨论议题'}</span><strong>{latestHostMessage?.content ?? snapshot.topic}</strong><small>IDEAS IN MOTION</small></div>
         {host && <Seat agent={host} active={activeAgentId === host.id} position={{ left: '50%', top: '15%' }} index={0} />}
         {experts.map((agent, index) => {
           const angle = (-5 + (experts.length === 1 ? 90 : index * 190 / (experts.length - 1))) * Math.PI / 180;

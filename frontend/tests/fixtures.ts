@@ -9,6 +9,7 @@ export const baseSnapshot: DiscussionSnapshot = {
     { id: 'expert-b', kind: 'expert', name: '乙专家', title: '教师', stance: '审慎', specialties: ['课堂'], color: '#a89bd1', public_status: 'waiting', public_intent: '' },
   ],
   messages: [], insight: { consensus: [], disagreements: [], open_questions: [], claim_flags: [] },
+  review_unavailable_message_ids: [],
   summary: null, last_event_seq: 1, resume_point: null, error_code: null, expert_turns: 0,
 };
 

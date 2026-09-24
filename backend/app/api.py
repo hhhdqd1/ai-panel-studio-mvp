@@ -70,9 +70,16 @@ async def resume_discussion(discussion_id: str, request: Request) -> dict:
         raise HTTPException(status_code=404, detail="讨论不存在")
     if snapshot["status"] != "failed":
         raise HTTPException(status_code=409, detail="当前状态不可继续")
+    if snapshot["error_code"] == "model_call_limit":
+        raise HTTPException(status_code=409, detail="本场模型调用预算已用尽，无法继续")
     point = snapshot["resume_point"]
     if point not in {"generating_panel", "running", "summarizing"}:
         raise HTTPException(status_code=409, detail="没有可恢复的检查点")
+    if point == "running" and snapshot["error_code"] == "all_intents_failed":
+        used = await store.count_model_runs(discussion_id)
+        if used + snapshot["expert_count"] + 2 + 5 > 100:
+            await store.mark_budget_exhausted(discussion_id)
+            raise HTTPException(status_code=409, detail="剩余额度不足以完成下一轮讨论")
     if point in {"running", "summarizing"}:
         previous = request.app.state.runner.tasks.get(discussion_id)
         if previous is not None:

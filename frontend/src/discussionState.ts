@@ -12,6 +12,7 @@ export function applyEvent(snapshot: DiscussionSnapshot, event: DiscussionEvent)
     case 'agent.updated':
       return { ...next, agents: next.agents.map((agent) => agent.id === event.payload.agent.id ? event.payload.agent : agent) };
     case 'message.created':
+      if (next.messages.some((message) => message.id === event.payload.message.id)) return next;
       return {
         ...next,
         messages: [...next.messages, event.payload.message],
@@ -24,6 +25,12 @@ export function applyEvent(snapshot: DiscussionSnapshot, event: DiscussionEvent)
     case 'discussion.failed':
       return { ...next, status: 'failed', error_code: event.payload.error_code };
     case 'insight.review_unavailable':
+      return {
+        ...next,
+        review_unavailable_message_ids: next.review_unavailable_message_ids.includes(event.payload.message_id)
+          ? next.review_unavailable_message_ids
+          : [...next.review_unavailable_message_ids, event.payload.message_id],
+      };
     case 'moderator.fact_followup':
       return next;
   }

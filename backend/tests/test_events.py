@@ -9,6 +9,8 @@ from httpx import ASGITransport, AsyncClient
 from app.events import event_frames, parse_after, sse_frame
 from app.fake_gateway import FakeGateway
 from app.main import create_app
+from app.panel_service import PanelService
+import app.store as store_module
 
 
 async def connected() -> bool:
@@ -83,3 +85,42 @@ async def test_invalid_resume_id_returns_422_before_opening_stream(store):
             headers={"Last-Event-ID": "not-an-integer"},
         )
     assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_snapshot_and_event_cursor_share_one_database_version(store, monkeypatch):
+    discussion_id = await store.create_discussion("教育", 2)
+    await PanelService(store, FakeGateway()).generate(discussion_id)
+    host_id = (await store.get_snapshot(discussion_id))["agents"][0]["id"]
+    original_connect = store_module.connect_db
+    interrupted = False
+
+    class InterruptedRead:
+        def __init__(self, connection):
+            self.connection = connection
+
+        async def execute(self, sql, parameters=()):
+            nonlocal interrupted
+            if sql.startswith("SELECT * FROM agent") and not interrupted:
+                interrupted = True
+                await store.append_message(discussion_id, host_id, "opening", "并发写入的开场白。")
+            return await self.connection.execute(sql, parameters)
+
+        def __getattr__(self, name):
+            return getattr(self.connection, name)
+
+    async def intercept_once(path):
+        connection = await original_connect(path)
+        if not interrupted:
+            return InterruptedRead(connection)
+        return connection
+
+    monkeypatch.setattr(store_module, "connect_db", intercept_once)
+    snapshot = await store.get_snapshot(discussion_id)
+    replay = await store.events_after(discussion_id, snapshot["last_event_seq"])
+
+    assert interrupted
+    assert snapshot["last_event_seq"] == 1
+    assert snapshot["messages"] == []
+    assert [(event["sequence"], event["type"]) for event in replay] == [(2, "message.created")]
+    assert len((await store.get_snapshot(discussion_id))["messages"]) == 1

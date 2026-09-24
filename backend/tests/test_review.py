@@ -137,6 +137,12 @@ async def test_each_expert_speech_is_reviewed_and_flags_link_to_messages(store):
 async def test_review_failure_emits_unavailable_but_discussion_completes(store):
     snapshot = await run_complete(store, ReviewFailsOnceGateway())
     assert snapshot["status"] == "completed"
+    assert len(snapshot["review_unavailable_message_ids"]) == 1
+    assert snapshot["review_unavailable_message_ids"][0] in {
+        message["id"] for message in snapshot["messages"]
+    }
+    refreshed = await store.get_snapshot(snapshot["id"])
+    assert refreshed["review_unavailable_message_ids"] == snapshot["review_unavailable_message_ids"]
     with sqlite3.connect(store.db_path) as connection:
         event_types = [row[0] for row in connection.execute(
             "SELECT type FROM event WHERE discussion_id = ? ORDER BY sequence", (snapshot["id"],)

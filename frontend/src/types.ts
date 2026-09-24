@@ -50,6 +50,7 @@ export type DiscussionSnapshot = DiscussionListItem & {
   agents: Agent[];
   messages: Message[];
   insight: Insight;
+  review_unavailable_message_ids: string[];
   summary: string | null;
   last_event_seq: number;
   resume_point: string | null;

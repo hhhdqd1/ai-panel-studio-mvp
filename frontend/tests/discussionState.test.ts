@@ -37,6 +37,14 @@ describe('applyEvent', () => {
     expect(applyEvent(baseSnapshot, { sequence: 2, type: 'message.created', payload: { message: newMessage } }).messages).toEqual([newMessage]);
   });
 
+  it('does not duplicate a message already present in a loaded snapshot', () => {
+    const loaded = { ...baseSnapshot, messages: [newMessage], expert_turns: 1 };
+    const next = applyEvent(loaded, { sequence: 2, type: 'message.created', payload: { message: newMessage } });
+    expect(next.messages).toHaveLength(1);
+    expect(next.expert_turns).toBe(1);
+    expect(next.last_event_seq).toBe(2);
+  });
+
   it('updates insights', () => {
     const insight = { ...baseSnapshot.insight, open_questions: [{ text: '证据何在？', message_ids: ['message-1'] }] };
     expect(applyEvent(baseSnapshot, { sequence: 2, type: 'insight.updated', payload: { insight } }).insight).toEqual(insight);
@@ -58,6 +66,7 @@ describe('applyEvent', () => {
     const next = applyEvent(baseSnapshot, { sequence: 2, type: 'insight.review_unavailable', payload: { message_id: 'message-1' } });
     expect(next.last_event_seq).toBe(2);
     expect(next.messages).toHaveLength(0);
+    expect(next.review_unavailable_message_ids).toEqual(['message-1']);
   });
 
   it('consumes moderator follow-up without losing sequence', () => {

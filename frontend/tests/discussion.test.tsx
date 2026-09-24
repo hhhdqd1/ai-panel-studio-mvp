@@ -45,8 +45,20 @@ describe('DiscussionPage', () => {
 
   it('offers panel confirmation and starts only after a click', async () => {
     renderDiscussion();
+    const preview = await screen.findByRole('region', { name: '阵容预览' });
+    expect(within(preview).getByText('支持试点')).toBeVisible();
+    expect(within(preview).getByText('教育')).toBeVisible();
     await userEvent.click(await screen.findByRole('button', { name: '确认阵容，开始讨论' }));
     expect(api.startDiscussion).toHaveBeenCalledWith('test-id');
+  });
+
+  it('shows a persisted review failure after refresh', async () => {
+    vi.mocked(api.getDiscussion).mockResolvedValue({
+      ...baseSnapshot, status: 'completed', messages: [newMessage],
+      review_unavailable_message_ids: [newMessage.id],
+    });
+    renderDiscussion();
+    expect(await screen.findByText(/本轮审查暂不可用/)).toBeVisible();
   });
 
   it('offers recovery when a discussion failed', async () => {
@@ -54,6 +66,13 @@ describe('DiscussionPage', () => {
     renderDiscussion();
     await userEvent.click(await screen.findByRole('button', { name: '继续讨论' }));
     expect(api.resumeDiscussion).toHaveBeenCalledWith('test-id');
+  });
+
+  it('explains exhausted budget instead of offering a dead recovery button', async () => {
+    vi.mocked(api.getDiscussion).mockResolvedValue({ ...baseSnapshot, status: 'failed', error_code: 'model_call_limit', resume_point: null });
+    renderDiscussion();
+    expect(await screen.findByText(/本场剩余模型调用预算不足/)).toBeVisible();
+    expect(screen.queryByRole('button', { name: '继续讨论' })).not.toBeInTheDocument();
   });
 
   it('shows a natural-language summary without raw JSON', async () => {
@@ -79,6 +98,8 @@ describe('DiscussionPage', () => {
     expect(RecordingEventSource.latest.url).toContain('after=1');
     act(() => RecordingEventSource.latest.emit('message.created', 2, { message: newMessage }));
     expect(screen.getByText(newMessage.content)).toBeInTheDocument();
+    act(() => RecordingEventSource.latest.emit('insight.review_unavailable', 3, { message_id: newMessage.id }));
+    expect(screen.getByText(/本轮审查暂不可用/)).toBeInTheDocument();
     act(() => RecordingEventSource.latest.onerror?.());
     expect(screen.getByText(/正在重连，已保留现有内容/)).toBeInTheDocument();
     expect(screen.getByText(newMessage.content)).toBeInTheDocument();
@@ -92,6 +113,12 @@ describe('live panels', () => {
     render(<><Roundtable snapshot={snapshot} /><Transcript snapshot={snapshot} activeMessageId={newMessage.id} /></>);
     expect(within(screen.getByRole('region', { name: '圆桌席位' })).getByText('甲专家').closest('[aria-current]')).toHaveAttribute('aria-current', 'true');
     expect(screen.getByText(newMessage.content).closest('[data-active]')).toHaveAttribute('data-active', 'true');
+  });
+
+  it('keeps the latest host question at the center of the table', () => {
+    const hostMessage = { ...newMessage, id: 'host-question', agent_id: 'host', content: '请比较两种路径的证据与代价。' };
+    render(<Roundtable snapshot={{ ...baseSnapshot, messages: [hostMessage] }} />);
+    expect(screen.getByText(hostMessage.content).closest('.table-surface')).toBeInTheDocument();
   });
 
   it('links a claim-risk flag to the originating message', async () => {

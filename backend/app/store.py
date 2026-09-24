@@ -143,6 +143,10 @@ class Store:
     async def get_snapshot(self, discussion_id: str) -> dict | None:
         connection = await connect_db(self.db_path)
         try:
+            # Pin all rows and the event cursor to one WAL snapshot. A writer may
+            # commit between SELECTs; without BEGIN the client can replay a
+            # message already present in the returned transcript.
+            await connection.execute("BEGIN")
             cursor = await connection.execute(
                 "SELECT * FROM discussion WHERE id = ?", (discussion_id,)
             )
@@ -183,6 +187,15 @@ class Store:
                 if latest_insight is not None
                 else empty_insight()
             )
+            cursor = await connection.execute(
+                "SELECT payload_json FROM event WHERE discussion_id = ? "
+                "AND type = 'insight.review_unavailable' ORDER BY sequence",
+                (discussion_id,),
+            )
+            snapshot["review_unavailable_message_ids"] = list(dict.fromkeys(
+                json.loads(event["payload_json"])["message_id"]
+                for event in await cursor.fetchall()
+            ))
             return snapshot
         finally:
             await connection.close()
@@ -309,6 +322,30 @@ class Store:
             )
             await connection.commit()
             await self._notify_event(discussion_id)
+        except BaseException:
+            await connection.rollback()
+            raise
+        finally:
+            await connection.close()
+
+    async def mark_budget_exhausted(self, discussion_id: str) -> None:
+        """Turn a failed discussion into an honest, non-resumable budget stop."""
+        connection = await connect_db(self.db_path)
+        try:
+            await connection.execute("BEGIN IMMEDIATE")
+            cursor = await connection.execute(
+                "UPDATE discussion SET error_code = 'model_call_limit', resume_point = NULL, "
+                "updated_at = ? WHERE id = ? AND status = 'failed' "
+                "AND COALESCE(error_code, '') != 'model_call_limit'",
+                (utc_now(), discussion_id),
+            )
+            if cursor.rowcount:
+                await self._append_event_tx(
+                    connection, discussion_id, "discussion.failed", {"error_code": "model_call_limit"}
+                )
+            await connection.commit()
+            if cursor.rowcount:
+                await self._notify_event(discussion_id)
         except BaseException:
             await connection.rollback()
             raise

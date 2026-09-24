@@ -9,6 +9,9 @@ test('a roundtable survives refresh, locates risks, and reaches a natural summar
   await page.getByLabel('讨论议题').fill('AI 与教育如何共存？');
   await page.getByRole('button', { name: '创建圆桌' }).click();
   await expect(page.getByRole('button', { name: '确认阵容，开始讨论' })).toBeVisible();
+  await expect(page.getByRole('region', { name: '阵容预览' })).toContainText('视角1');
+  mkdirSync(screenshots, { recursive: true });
+  await page.screenshot({ path: resolve(screenshots, 'panel-preview.png'), fullPage: true });
   await page.getByRole('button', { name: '确认阵容，开始讨论' }).click();
   await expect(page.locator('[data-testid="transcript-message"]').first()).toBeVisible();
   await expect(page.locator('.round-seat.seat-active')).toHaveCount(1);
@@ -49,25 +52,29 @@ test('a roundtable survives refresh, locates risks, and reaches a natural summar
   await page.screenshot({ path: resolve(screenshots, 'mobile.png'), fullPage: true });
 });
 
-test('two roundtables do not mix their discussion records', async ({ page }) => {
-  async function create(topic: string) {
-    await page.goto('/');
-    await page.getByLabel('讨论议题').fill(topic);
-    await page.getByRole('button', { name: '创建圆桌' }).click();
-    await expect(page.getByRole('button', { name: '确认阵容，开始讨论' })).toBeVisible();
-    return page.url();
+test('two concurrently running roundtables do not mix their records', async ({ page, context }) => {
+  async function create(target: typeof page, topic: string) {
+    await target.goto('/');
+    await target.getByLabel('讨论议题').fill(topic);
+    await target.getByRole('button', { name: '创建圆桌' }).click();
+    await expect(target.getByRole('button', { name: '确认阵容，开始讨论' })).toBeVisible();
+    return target.url();
   }
-  const first = await create('教育资源分配');
-  const second = await create('城市绿地规划');
+  const first = await create(page, '教育资源分配');
+  const secondPage = await context.newPage();
+  const second = await create(secondPage, '城市绿地规划');
   expect(first).not.toBe(second);
-  await page.getByRole('button', { name: '确认阵容，开始讨论' }).click();
-  await expect(page.getByRole('heading', { name: '主持人总结' })).toBeVisible();
-  await page.goto(first);
-  await page.getByRole('button', { name: '确认阵容，开始讨论' }).click();
-  await expect(page.getByRole('heading', { name: '主持人总结' })).toBeVisible();
+  await Promise.all([
+    page.getByRole('button', { name: '确认阵容，开始讨论' }).click(),
+    secondPage.getByRole('button', { name: '确认阵容，开始讨论' }).click(),
+  ]);
+  await Promise.all([
+    expect(page.getByRole('heading', { name: '主持人总结' })).toBeVisible(),
+    expect(secondPage.getByRole('heading', { name: '主持人总结' })).toBeVisible(),
+  ]);
   await expect(page.getByRole('region', { name: '实时讨论记录' })).toContainText('教育资源分配');
   await expect(page.getByRole('region', { name: '实时讨论记录' })).not.toContainText('城市绿地规划');
-  await page.goto(second);
-  await expect(page.getByRole('region', { name: '实时讨论记录' })).toContainText('城市绿地规划');
-  await expect(page.getByRole('region', { name: '实时讨论记录' })).not.toContainText('教育资源分配');
+  await expect(secondPage.getByRole('region', { name: '实时讨论记录' })).toContainText('城市绿地规划');
+  await expect(secondPage.getByRole('region', { name: '实时讨论记录' })).not.toContainText('教育资源分配');
+  await secondPage.close();
 });
