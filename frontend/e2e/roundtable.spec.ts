@@ -1,8 +1,4 @@
 import { expect, test } from '@playwright/test';
-import { mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
-
-const screenshots = resolve(process.cwd(), '../docs/screenshots');
 
 test('a roundtable survives refresh, locates risks, and reaches a natural summary', async ({ page }) => {
   await page.goto('/');
@@ -10,8 +6,7 @@ test('a roundtable survives refresh, locates risks, and reaches a natural summar
   await page.getByRole('button', { name: '创建圆桌' }).click();
   await expect(page.getByRole('button', { name: '确认阵容，开始讨论' })).toBeVisible();
   await expect(page.getByRole('region', { name: '阵容预览' })).toContainText('视角1');
-  mkdirSync(screenshots, { recursive: true });
-  await page.screenshot({ path: resolve(screenshots, 'panel-preview.png'), fullPage: true });
+  await page.screenshot({ path: test.info().outputPath('panel-preview.png'), fullPage: true });
   await page.getByRole('button', { name: '确认阵容，开始讨论' }).click();
   await expect(page.locator('[data-testid="transcript-message"]').first()).toBeVisible();
   await expect(page.locator('.round-seat.seat-active')).toHaveCount(1);
@@ -32,8 +27,7 @@ test('a roundtable survives refresh, locates risks, and reaches a natural summar
   if (await seedStart.isVisible()) await seedStart.click();
   await expect(seedSummary).toBeVisible();
   await expect(page.getByRole('link', { name: /查看原发言/ })).toBeVisible();
-  mkdirSync(screenshots, { recursive: true });
-  await page.screenshot({ path: resolve(screenshots, 'desktop.png'), fullPage: true });
+  await page.screenshot({ path: test.info().outputPath('desktop.png'), fullPage: true });
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('tab', { name: '洞察' }).click();
@@ -49,7 +43,7 @@ test('a roundtable survives refresh, locates risks, and reaches a natural summar
   }));
   expect(dimensions.page).toBe(dimensions.viewport);
   expect(dimensions.scroll).toBeGreaterThan(dimensions.visible);
-  await page.screenshot({ path: resolve(screenshots, 'mobile.png'), fullPage: true });
+  await page.screenshot({ path: test.info().outputPath('mobile.png'), fullPage: true });
 });
 
 test('two concurrently running roundtables do not mix their records', async ({ page, context }) => {
