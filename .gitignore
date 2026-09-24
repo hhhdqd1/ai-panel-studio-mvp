@@ -18,5 +18,4 @@ test-results/
 *.sqlite3
 *.sqlite3-shm
 *.sqlite3-wal
-docs/submission/prompt-log.pdf
-docs/submission/workflow.pdf
+docs/submission/
