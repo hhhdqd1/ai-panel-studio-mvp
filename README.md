@@ -117,12 +117,3 @@ cd frontend && npx playwright test
 ```
 
 Playwright 测试会自己启动显式假模型后端和前端，使用 `frontend/test-results/` 下的独立 SQLite 文件，不调用真实 API；运行前请先停止占用 8000、5173 端口的本地开发服务。测试覆盖刷新恢复、风险定位、移动标签和两场讨论隔离。
-
-## 交付与边界
-
-- [核心 Prompt 案例](docs/prompt-log.md) 是依据实际产物专业化重构的可复用指令，不是历史对话逐字记录；[工作流说明](docs/workflow.md) 如实说明实际使用 Codex 开发、DeepSeek 运行时生成，没有声称使用过未使用的工具或模型版本。
-- 仓库中保留可编辑的 [核心 Prompt 记录](docs/prompt-log.md)、[工作流说明](docs/workflow.md) 与 [提交清单](docs/submission/submission-checklist.md)。两份便于邮件阅读的 PDF 仅保留在本地交付材料和源码压缩包内，不再纳入 GitHub 仓库；压缩包内文件名使用英文，避免跨平台解压乱码。
-- [真实 DeepSeek 冒烟记录](docs/real-api-smoke.md) 单独列出耗时、调用次数、输出质量与未核实风险，不与假模型结果混淆。
-- 五条示例保存在 [`backend/data/seed_examples.json`](backend/data/seed_examples.json)，截图来自真实浏览器运行。
-- 这是本机单用户 MVP：没有用户登录、外部网页证据检索、生产级任务队列或多 worker 部署。SSE 连接需要运行中的后端，离线时旧记录仍在 SQLite 中。
-- 提交前由用户亲自核对 GitHub 仓库、文档、截图、运行效果与压缩包。邮件发送由用户决定，本项目不会自动发送。
